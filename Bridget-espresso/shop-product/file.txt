@@ -1,0 +1,131 @@
+NAME: shop-product
+LAST DEPLOYED: Fri Jan 26 05:07:34 2024
+NAMESPACE: default
+STATUS: pending-install
+REVISION: 1
+HOOKS:
+---
+# Source: shop-product/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "shop-product-test-connection"
+  labels:
+    helm.sh/chart: shop-product-0.1.0
+    app.kubernetes.io/name: shop-product
+    app.kubernetes.io/instance: shop-product
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['shop-product:8091']
+  restartPolicy: Never
+MANIFEST:
+---
+# Source: shop-product/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: espresso-shop-product-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: v1
+---
+# Source: shop-product/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: espresso-shop-product-sa
+  labels:
+    app: v1
+---
+# Source: shop-product/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: espresso-shop-product-svc
+  labels:
+    app: v1
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8091
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    app: v1
+---
+# Source: shop-product/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: espresso-shop-product
+  labels:
+    app: v1
+spec:
+  selector:
+    matchLabels:
+      app: v1
+  template:
+    metadata:
+      labels:
+        app: v1
+        version: v1
+    spec:
+      serviceAccountName: espresso-shop-product
+      securityContext:
+        {}
+      containers:
+        - name: shop-product
+          securityContext:
+            {}
+          image: "achotiab/product-catalog:v1.0.0" 
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP    
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+---
+# Source: shop-product/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: espresso-shop-product-hpa
+  labels:
+    app: v1
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: espresso-shop-product
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+NOTES:
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=shop-product,app.kubernetes.io/instance=shop-product" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace default $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace default port-forward $POD_NAME 8080:$CONTAINER_PORT
